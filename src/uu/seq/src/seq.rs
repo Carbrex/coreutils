@@ -46,24 +46,20 @@ type RangeFloat = (f128, f128, f128);
 fn num_integral_digits(num: f128) -> usize {
     let mut num = f128::abs(num);
     let mut digits = 0;
-    println!("num inside dig: {}", num);
     while num >= f128::ONE {
         num = num / f128::new(10);
         digits += 1;
     }
-    println!("num inside dig: {}", num);
     digits
 }
 
 fn num_fractional_digits(num: f128) -> usize {
     let mut num = f128::abs(num);
     let mut digits = 0;
-    println!("num inside frac: {}", num);
     while num.fract() > f128::ZERO && digits < 100 {
         num = num * f128::new(10);
         digits += 1;
     }
-    println!("num inside frac: {}", num);
     digits
 }
 
@@ -97,7 +93,7 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
     let first = if numbers.len() > 1 {
         match f128::parse(numbers[0]) {
             Ok(num) => num,
-            Err(e) => {
+            Err(_e) => {
                 return Err(
                     SeqError::ParseError(numbers[0].to_string(), ParseNumberError::Float).into(),
                 )
@@ -112,7 +108,7 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
     let increment = if numbers.len() > 2 {
         match f128::parse(numbers[1]) {
             Ok(num) => num,
-            Err(e) => {
+            Err(_e) => {
                 return Err(
                     SeqError::ParseError(numbers[1].to_string(), ParseNumberError::Float).into(),
                 )
@@ -131,7 +127,7 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
         let n: usize = numbers.len();
         match f128::parse(numbers[n - 1]) {
             Ok(num) => num,
-            Err(e) => {
+            Err(_e) => {
                 return Err(SeqError::ParseError(
                     numbers[n - 1].to_string(),
                     ParseNumberError::Float,
