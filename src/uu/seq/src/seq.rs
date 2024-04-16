@@ -3,7 +3,7 @@
 // For the full copyright and license information, please view the LICENSE
 // file that was distributed with this source code.
 // spell-checker:ignore (ToDO) extendedbigdecimal numberparse
-use std::io::{stdout, ErrorKind, Write};
+use std::io::{stdout, BufRead, ErrorKind, Write};
 
 use clap::{crate_version, Arg, ArgAction, Command};
 use num_traits::{Float, ToPrimitive, Zero};
@@ -54,13 +54,12 @@ fn num_integral_digits(num: f128) -> usize {
 }
 
 fn num_fractional_digits(num: f128) -> usize {
-    let mut num = f128::abs(num);
-    let mut digits = 0;
-    while num.fract() > f128::ZERO && digits < 100 {
-        num = num * f128::new(10);
-        digits += 1;
+    let s = format!("{}", num);
+    if let Some(pos) = s.find('.') {
+        s[pos+1..].len()
+    } else {
+        0
     }
-    digits
 }
 
 #[uucore::main]
@@ -144,7 +143,11 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
         .max(num_integral_digits(increment))
         .max(num_integral_digits(last));
     let largest_dec = num_fractional_digits(first).max(num_fractional_digits(increment));
-
+    println!("padding: {}", padding);
+    println!("largest_dec: {}", largest_dec);
+    println!("first: {}", first);
+    println!("increment: {:?}", increment);
+    println!("last: {}", last);
     let format = match options.format {
         Some(f) => {
             let f = Format::<num_format::Float>::parse(f)?;
@@ -152,7 +155,6 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
         }
         None => None,
     };
-    println!("first: {}, increment: {}, last: {}", first, increment, last);
     let result = print_seq(
         (first, increment, last),
         largest_dec,
@@ -224,13 +226,36 @@ fn write_value_float(
     width: usize,
     precision: usize,
 ) -> std::io::Result<()> {
-    let value_as_str = if *value == f128::INFINITY || *value == f128::NEG_INFINITY {
-        format!("{value:>width$.precision$}")
-    } else {
-        format!("{value:>0width$.precision$}")
-    };
-    write!(writer, "{value_as_str}")
+    // let value_as_str = if *value == f128::INFINITY || *value == f128::NEG_INFINITY {
+    //     format!("{value:>width$.precision$}")
+    // } else {
+    //     format!("{value:>0width$.precision$}")
+    // };
+    // write!(writer, "{value_as_str}")
+    // let value_as_f64_option = value.to_f64();
+    // match value_as_f64_option {
+    //     Some(value_as_f64) => {
+    //         write!(
+    //             writer,
+    //             "{:0width$.precision$}",
+    //             value_as_f64,
+    //             width = width,
+    //             precision = precision
+    //         )
+    //     },
+    //     None => {
+    //         write!(writer, "Error: value could not be converted to f64")
+    //     }
+    // }
+    write!(
+        writer,
+        "{:0width$.precision$}",
+        value,
+        width = width,
+        precision = precision
+    )
 }
+
 
 /// Floating point based code path
 fn print_seq(
@@ -253,26 +278,28 @@ fn print_seq(
     };
     let mut is_first_iteration = true;
     while !done_printing(&value, &increment, &last) {
-        println!("value: {}, increment: {}, last: {}", value, increment, last);
         if !is_first_iteration {
             write!(stdout, "{separator}")?;
         }
-        match &format {
-            Some(f) => {
-                let float = match &value {
-                    // ExtendedBigDecimal::BigDecimal(bd) => bd.to_f64().unwrap(),
-                    // ExtendedBigDecimal::Infinity => f64::INFINITY,
-                    // ExtendedBigDecimal::MinusInfinity => f64::NEG_INFINITY,
-                    // ExtendedBigDecimal::MinusZero => -0.0,
-                    // ExtendedBigDecimal::Nan => f64::NAN,
-                    f if f.is_infinite() && f.is_sign_positive() => f64::INFINITY,
-                    f if f.is_infinite() && f.is_sign_negative() => f64::NEG_INFINITY,
-                    _ => value.to_f64().unwrap(),
-                };
-                f.fmt(&mut stdout, float)?;
-            }
-            None => write_value_float(&mut stdout, &value, padding, largest_dec)?,
-        }
+        // match &format {
+            //     Some(f) => {
+        //         let float = match &value {
+            //             // ExtendedBigDecimal::BigDecimal(bd) => bd.to_f64().unwrap(),
+            //             // ExtendedBigDecimal::Infinity => f64::INFINITY,
+            //             // ExtendedBigDecimal::MinusInfinity => f64::NEG_INFINITY,
+        //             // ExtendedBigDecimal::MinusZero => -0.0,
+        //             // ExtendedBigDecimal::Nan => f64::NAN,
+        //             f if f.is_infinite() && f.is_sign_positive() => f64::INFINITY,
+        //             f if f.is_infinite() && f.is_sign_negative() => f64::NEG_INFINITY,
+        //             _ => value.to_f64().unwrap(),
+        //         };
+        //         f.fmt(&mut stdout, float)?;
+        //     }
+        //     None => write_value_float(&mut stdout, &value, padding, largest_dec)?,
+        // }
+        println!("value: {}", value);
+        write_value_float(&mut stdout, &value, padding, largest_dec)?;
+        break;
         // TODO Implement augmenting addition.
         value = value + increment.clone();
         is_first_iteration = false;
