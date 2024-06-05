@@ -1,0 +1,3 @@
+matches: ArgMatches { valid_args: ["separator", "terminator", "equal-width", "format", "numbers", "help", "version"], valid_subcommands: [], args: FlatMap { keys: ["numbers", "equal-width"], values: [MatchedArg { source: Some(CommandLine), indices: [1, 2], type_id: Some(alloc::string::String), vals: [[AnyValue { inner: alloc::string::String }, AnyValue { inner: alloc::string::String }]], raw_vals: [["4e4000003", "4e4000003"]], ignore_case: false }, MatchedArg { source: Some(DefaultValue), indices: [3], type_id: Some(bool), vals: [[AnyValue { inner: bool }]], raw_vals: [["false"]], ignore_case: false }] }, subcommand: None }
+first: inf, increment: 1, last: inf
+num inside dig: inf

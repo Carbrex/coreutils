@@ -3,10 +3,10 @@
 // For the full copyright and license information, please view the LICENSE
 // file that was distributed with this source code.
 // spell-checker:ignore (ToDO) extendedbigdecimal numberparse
-use std::io::{stdout, ErrorKind, Write};
+use std::io::{stdout, BufRead, ErrorKind, Write};
 
 use clap::{crate_version, Arg, ArgAction, Command};
-use num_traits::{ToPrimitive, Zero};
+use num_traits::{Float, ToPrimitive, Zero};
 
 use uucore::error::{FromIo, UResult};
 use uucore::format::{num_format, Format};
@@ -17,8 +17,8 @@ mod extendedbigdecimal;
 mod number;
 mod numberparse;
 use crate::error::SeqError;
-use crate::extendedbigdecimal::ExtendedBigDecimal;
-use crate::number::PreciseNumber;
+use f128::f128;
+use numberparse::ParseNumberError;
 
 const ABOUT: &str = help_about!("seq.md");
 const USAGE: &str = help_usage!("seq.md");
@@ -41,7 +41,26 @@ struct SeqOptions<'a> {
 /// A range of floats.
 ///
 /// The elements are (first, increment, last).
-type RangeFloat = (ExtendedBigDecimal, ExtendedBigDecimal, ExtendedBigDecimal);
+type RangeFloat = (f128, f128, f128);
+
+fn num_integral_digits(num: f128) -> usize {
+    let mut num = f128::abs(num);
+    let mut digits = 0;
+    while num >= f128::ONE {
+        num = num / f128::new(10);
+        digits += 1;
+    }
+    digits
+}
+
+fn num_fractional_digits(num: f128) -> usize {
+    let s = format!("{}", num);
+    if let Some(pos) = s.find('.') {
+        s[pos+1..].len()
+    } else {
+        0
+    }
+}
 
 #[uucore::main]
 pub fn uumain(args: impl uucore::Args) -> UResult<()> {
@@ -71,43 +90,64 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
     };
 
     let first = if numbers.len() > 1 {
-        match numbers[0].parse() {
+        match f128::parse(numbers[0]) {
             Ok(num) => num,
-            Err(e) => return Err(SeqError::ParseError(numbers[0].to_string(), e).into()),
+            Err(_e) => {
+                return Err(
+                    SeqError::ParseError(numbers[0].to_string(), ParseNumberError::Float).into(),
+                )
+            }
         }
     } else {
-        PreciseNumber::one()
+        f128::ONE
     };
+    if first.is_infinite() {
+        return Err(SeqError::ParseError(numbers[0].to_string(), ParseNumberError::Float).into());
+    }
     let increment = if numbers.len() > 2 {
-        match numbers[1].parse() {
+        match f128::parse(numbers[1]) {
             Ok(num) => num,
-            Err(e) => return Err(SeqError::ParseError(numbers[1].to_string(), e).into()),
+            Err(_e) => {
+                return Err(
+                    SeqError::ParseError(numbers[1].to_string(), ParseNumberError::Float).into(),
+                )
+            }
         }
     } else {
-        PreciseNumber::one()
+        f128::ONE
     };
+    if increment.is_infinite() {
+        return Err(SeqError::ParseError(numbers[1].to_string(), ParseNumberError::Float).into());
+    }
     if increment.is_zero() {
         return Err(SeqError::ZeroIncrement(numbers[1].to_string()).into());
     }
-    let last: PreciseNumber = {
-        // We are guaranteed that `numbers.len()` is greater than zero
-        // and at most three because of the argument specification in
-        // `uu_app()`.
+    let last = {
         let n: usize = numbers.len();
-        match numbers[n - 1].parse() {
+        match f128::parse(numbers[n - 1]) {
             Ok(num) => num,
-            Err(e) => return Err(SeqError::ParseError(numbers[n - 1].to_string(), e).into()),
+            Err(_e) => {
+                return Err(SeqError::ParseError(
+                    numbers[n - 1].to_string(),
+                    ParseNumberError::Float,
+                )
+                .into())
+            }
         }
     };
+    if last.is_infinite() {
+        return Err(SeqError::ParseError(numbers[2].to_string(), ParseNumberError::Float).into());
+    }
 
-    let padding = first
-        .num_integral_digits
-        .max(increment.num_integral_digits)
-        .max(last.num_integral_digits);
-    let largest_dec = first
-        .num_fractional_digits
-        .max(increment.num_fractional_digits);
-
+    let padding = num_integral_digits(first)
+        .max(num_integral_digits(increment))
+        .max(num_integral_digits(last));
+    let largest_dec = num_fractional_digits(first).max(num_fractional_digits(increment));
+    println!("padding: {}", padding);
+    println!("largest_dec: {}", largest_dec);
+    println!("first: {}", first);
+    println!("increment: {:?}", increment);
+    println!("last: {}", last);
     let format = match options.format {
         Some(f) => {
             let f = Format::<num_format::Float>::parse(f)?;
@@ -116,7 +156,7 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
         None => None,
     };
     let result = print_seq(
-        (first.number, increment.number, last.number),
+        (first, increment, last),
         largest_dec,
         &options.separator,
         &options.terminator,
@@ -179,21 +219,54 @@ fn done_printing<T: Zero + PartialOrd>(next: &T, increment: &T, last: &T) -> boo
     }
 }
 
-/// Write a big decimal formatted according to the given parameters.
 fn write_value_float(
     writer: &mut impl Write,
-    value: &ExtendedBigDecimal,
+    value: &f128,
     width: usize,
     precision: usize,
 ) -> std::io::Result<()> {
-    let value_as_str =
-        if *value == ExtendedBigDecimal::Infinity || *value == ExtendedBigDecimal::MinusInfinity {
-            format!("{value:>width$.precision$}")
-        } else {
-            format!("{value:>0width$.precision$}")
-        };
-    write!(writer, "{value_as_str}")
+    println!("{:?}", value);
+    write!(writer, "{:0width$.precision$}", value, width = width, precision = precision)
 }
+
+/// Write a floating point value to a writer.
+// fn write_value_float(
+//     writer: &mut impl Write,
+//     value: &f128,
+//     width: usize,
+//     precision: usize,
+// ) -> std::io::Result<()> {
+//     // let value_as_str = if *value == f128::INFINITY || *value == f128::NEG_INFINITY {
+//     //     format!("{value:>width$.precision$}")
+//     // } else {
+//     //     format!("{value:>0width$.precision$}")
+//     // };
+//     // write!(writer, "{value_as_str}")
+//     // let value_as_f64_option = value.to_f64();
+//     // match value_as_f64_option {
+//     //     Some(value_as_f64) => {
+//     //         write!(
+//     //             writer,
+//     //             "{:0width$.precision$}",
+//     //             value_as_f64,
+//     //             width = width,
+//     //             precision = precision
+//     //         )
+//     //     },
+//     //     None => {
+//     //         write!(writer, "Error: value could not be converted to f64")
+//     //     }
+//     // }
+//     write!(
+//         writer,
+//         "{:0width$.precision$}",
+//         value,
+//         width = width,
+//         precision = precision
+    
+//     )
+// }
+
 
 /// Floating point based code path
 fn print_seq(
@@ -219,31 +292,25 @@ fn print_seq(
         if !is_first_iteration {
             write!(stdout, "{separator}")?;
         }
-        // If there was an argument `-f FORMAT`, then use that format
-        // template instead of the default formatting strategy.
-        //
-        // TODO The `printf()` method takes a string as its second
-        // parameter but we have an `ExtendedBigDecimal`. In order to
-        // satisfy the signature of the function, we convert the
-        // `ExtendedBigDecimal` into a string. The `printf()`
-        // logic will subsequently parse that string into something
-        // similar to an `ExtendedBigDecimal` again before rendering
-        // it as a string and ultimately writing to `stdout`. We
-        // shouldn't have to do so much converting back and forth via
-        // strings.
-        match &format {
-            Some(f) => {
-                let float = match &value {
-                    ExtendedBigDecimal::BigDecimal(bd) => bd.to_f64().unwrap(),
-                    ExtendedBigDecimal::Infinity => f64::INFINITY,
-                    ExtendedBigDecimal::MinusInfinity => f64::NEG_INFINITY,
-                    ExtendedBigDecimal::MinusZero => -0.0,
-                    ExtendedBigDecimal::Nan => f64::NAN,
-                };
-                f.fmt(&mut stdout, float)?;
-            }
-            None => write_value_float(&mut stdout, &value, padding, largest_dec)?,
-        }
+        // match &format {
+            //     Some(f) => {
+        //         let float = match &value {
+            //             // ExtendedBigDecimal::BigDecimal(bd) => bd.to_f64().unwrap(),
+            //             // ExtendedBigDecimal::Infinity => f64::INFINITY,
+            //             // ExtendedBigDecimal::MinusInfinity => f64::NEG_INFINITY,
+        //             // ExtendedBigDecimal::MinusZero => -0.0,
+        //             // ExtendedBigDecimal::Nan => f64::NAN,
+        //             f if f.is_infinite() && f.is_sign_positive() => f64::INFINITY,
+        //             f if f.is_infinite() && f.is_sign_negative() => f64::NEG_INFINITY,
+        //             _ => value.to_f64().unwrap(),
+        //         };
+        //         f.fmt(&mut stdout, float)?;
+        //     }
+        //     None => write_value_float(&mut stdout, &value, padding, largest_dec)?,
+        // }
+        // println!("value: {}", value);
+        write_value_float(&mut stdout, &value, padding, largest_dec)?;
+        break;
         // TODO Implement augmenting addition.
         value = value + increment.clone();
         is_first_iteration = false;

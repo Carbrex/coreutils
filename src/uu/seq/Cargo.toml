@@ -16,6 +16,7 @@ edition = "2021"
 path = "src/seq.rs"
 
 [dependencies]
+f128 = { workspace = true }
 bigdecimal = { workspace = true }
 clap = { workspace = true }
 num-bigint = { workspace = true }
