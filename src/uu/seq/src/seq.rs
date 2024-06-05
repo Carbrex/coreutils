@@ -219,42 +219,53 @@ fn done_printing<T: Zero + PartialOrd>(next: &T, increment: &T, last: &T) -> boo
     }
 }
 
-/// Write a big decimal formatted according to the given parameters.
 fn write_value_float(
     writer: &mut impl Write,
     value: &f128,
     width: usize,
     precision: usize,
 ) -> std::io::Result<()> {
-    // let value_as_str = if *value == f128::INFINITY || *value == f128::NEG_INFINITY {
-    //     format!("{value:>width$.precision$}")
-    // } else {
-    //     format!("{value:>0width$.precision$}")
-    // };
-    // write!(writer, "{value_as_str}")
-    // let value_as_f64_option = value.to_f64();
-    // match value_as_f64_option {
-    //     Some(value_as_f64) => {
-    //         write!(
-    //             writer,
-    //             "{:0width$.precision$}",
-    //             value_as_f64,
-    //             width = width,
-    //             precision = precision
-    //         )
-    //     },
-    //     None => {
-    //         write!(writer, "Error: value could not be converted to f64")
-    //     }
-    // }
-    write!(
-        writer,
-        "{:0width$.precision$}",
-        value,
-        width = width,
-        precision = precision
-    )
+    println!("{:?}", value);
+    write!(writer, "{:0width$.precision$}", value, width = width, precision = precision)
 }
+
+/// Write a floating point value to a writer.
+// fn write_value_float(
+//     writer: &mut impl Write,
+//     value: &f128,
+//     width: usize,
+//     precision: usize,
+// ) -> std::io::Result<()> {
+//     // let value_as_str = if *value == f128::INFINITY || *value == f128::NEG_INFINITY {
+//     //     format!("{value:>width$.precision$}")
+//     // } else {
+//     //     format!("{value:>0width$.precision$}")
+//     // };
+//     // write!(writer, "{value_as_str}")
+//     // let value_as_f64_option = value.to_f64();
+//     // match value_as_f64_option {
+//     //     Some(value_as_f64) => {
+//     //         write!(
+//     //             writer,
+//     //             "{:0width$.precision$}",
+//     //             value_as_f64,
+//     //             width = width,
+//     //             precision = precision
+//     //         )
+//     //     },
+//     //     None => {
+//     //         write!(writer, "Error: value could not be converted to f64")
+//     //     }
+//     // }
+//     write!(
+//         writer,
+//         "{:0width$.precision$}",
+//         value,
+//         width = width,
+//         precision = precision
+    
+//     )
+// }
 
 
 /// Floating point based code path
@@ -297,7 +308,7 @@ fn print_seq(
         //     }
         //     None => write_value_float(&mut stdout, &value, padding, largest_dec)?,
         // }
-        println!("value: {}", value);
+        // println!("value: {}", value);
         write_value_float(&mut stdout, &value, padding, largest_dec)?;
         break;
         // TODO Implement augmenting addition.
